@@ -1,0 +1,6 @@
+{
+  "name": "PDFGenius - Your All-in-One PDF Workspace",
+  "description": "Professional, complete online PDF editor, converter, compressor, page manager, and document workspace with OCR, signing, and security tools.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
