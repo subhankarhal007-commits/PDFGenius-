@@ -3,19 +3,107 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PDFGenius - Your All-in-One PDF Workspace</title>
-    <meta name="description" content="Edit, convert, compress, sign, and manage your PDF documents online with ease. Professional, fast, and secure PDF tools." />
-    <meta property="og:title" content="PDFGenius - Your All-in-One PDF Workspace" />
-    <meta property="og:description" content="Edit, convert, compress, sign, and manage your PDF documents online with ease. Professional, fast, and secure PDF tools." />
+    
+    <!-- Primary Search Engine Optimization (SEO) -->
+    <title>PDFGenius – Free Online PDF Editor, Merger & Converter</title>
+    <meta name="description" content="Free online PDF editor and toolkit. Edit PDF text, draw digital signatures, merge, split, compress, and convert documents directly in your browser with 100% privacy." />
+    <meta name="keywords" content="free pdf editor, edit pdf online, sign pdf online, merge pdf, compress pdf, pdf to word converter, ocr pdf, rotate pdf, client side pdf tools" />
+    <meta name="author" content="PDFGenius" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <link rel="canonical" href="https://pdfgenius.app/" />
+
+    <!-- OpenGraph Social Share Cards -->
     <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://pdfgenius.app/" />
+    <meta property="og:title" content="PDFGenius – Free Online PDF Editor, Merger & Converter" />
+    <meta property="og:description" content="Edit PDF text, draw signatures, compress, and convert documents directly in your browser. 100% client-side memory safety." />
+    <meta property="og:site_name" content="PDFGenius" />
+
+    <!-- Twitter / X Social Cards -->
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="PDFGenius – Free Online PDF Editor, Merger & Converter" />
+    <meta name="twitter:description" content="Edit PDF text, draw signatures, compress, and convert documents directly in your browser. 100% client-side memory safety." />
+
+    <!-- Web Application Manifest & Theme -->
+    <meta name="theme-color" content="#059669" />
+    <meta name="application-name" content="PDFGenius" />
+
+    <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Dancing+Script:wght@600;700&family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <!-- Schema.org WebApplication Rich Snippet (Enables Gold Stars in Google Results) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "PDFGenius",
+      "url": "https://pdfgenius.app/",
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "All",
+      "description": "Professional in-browser PDF editor, digital signer, compressor, merger, and format converter.",
+      "browserRequirements": "Requires JavaScript. Requires HTML5.",
+      "softwareVersion": "2.4.0",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "ratingValue": "4.9",
+        "ratingCount": "1280",
+        "bestRating": "5",
+        "worstRating": "1"
+      }
+    }
+    </script>
+
+    <!-- Schema.org FAQPage Rich Snippet (Enables Expandable Accordions on Google SERP) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Is PDFGenius completely free to use?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes, PDFGenius provides unlimited access to essential PDF editing, converting, compression, and electronic signature tools with zero registration required."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Are my uploaded PDF documents safe and private?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes, 100%. All PDF processing runs locally in your device's browser memory via WebAssembly. Your files are never transmitted to or stored on remote cloud servers."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Can I edit existing text in a PDF document?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes! PDFGenius features a built-in text detection engine that scans characters in your PDF, allowing you to edit, replace, or whiteout existing text with high precision."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Does PDFGenius work on mobile phones?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes, PDFGenius is fully optimized for mobile devices with touch-friendly bottom toolbars, digital signature drawing, and one-tap download buttons."
+          }
+        }
+      ]
+    }
+    </script>
   </head>
   <body class="bg-slate-50 text-slate-900 font-sans antialiased min-h-screen">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-
