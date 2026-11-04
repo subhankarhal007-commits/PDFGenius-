@@ -336,7 +336,44 @@ export const PDFEditorWorkspace: React.FC = () => {
     }
   };
 
-  // Convert an existing PDF text item into an editable whiteout overlay
+  // Samples background color around coordinates on the underlying rendered PDF canvas to blend seamlessly
+  const sampleCanvasBgColor = useCallback((x: number, y: number): string => {
+    try {
+      const canvas = canvasRef.current;
+      if (!canvas || !canvas.width || !canvas.height) return 'transparent';
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (!ctx) return 'transparent';
+
+      const scaleX = canvas.width / (canvasDimensions.width || 1);
+      const scaleY = canvas.height / (canvasDimensions.height || 1);
+
+      // Check nearby points (to the left, above, and around text) to find background color
+      const probes = [
+        { px: Math.round((x - 4) * scaleX), py: Math.round((y + 4) * scaleY) },
+        { px: Math.round((x + 4) * scaleX), py: Math.round((y - 4) * scaleY) },
+        { px: Math.round((x - 6) * scaleX), py: Math.round((y - 2) * scaleY) },
+        { px: Math.round((x + 2) * scaleX), py: Math.round((y + 2) * scaleY) },
+      ];
+
+      for (const p of probes) {
+        const sx = Math.max(0, Math.min(canvas.width - 1, p.px));
+        const sy = Math.max(0, Math.min(canvas.height - 1, p.py));
+        const pixel = ctx.getImageData(sx, sy, 1, 1).data;
+        // Check if pixel is opaque and not text ink (sum > 120)
+        if (pixel[3] > 100 && (pixel[0] + pixel[1] + pixel[2] > 120)) {
+          const r = pixel[0].toString(16).padStart(2, '0');
+          const g = pixel[1].toString(16).padStart(2, '0');
+          const b = pixel[2].toString(16).padStart(2, '0');
+          return `#${r}${g}${b}`;
+        }
+      }
+      return 'transparent';
+    } catch {
+      return 'transparent';
+    }
+  }, [canvasDimensions]);
+
+  // Convert an existing PDF text item into an editable overlay
   const handleSelectDetectedText = (item: {
     id: string;
     str: string;
@@ -349,7 +386,9 @@ export const PDFEditorWorkspace: React.FC = () => {
     // Hide that item from detection overlay
     setDetectedTextItems((prev) => prev.filter((d) => d.id !== item.id));
 
-    // Convert into an editable annotation element with white background to cleanly cover the original PDF text
+    // Sample the background color from canvas behind this text item so it blends with the document
+    const sampledBg = sampleCanvasBgColor(item.x, item.y);
+
     const newElement: AnnotationElement = {
       id: `existing_text_${Date.now()}`,
       type: 'text',
@@ -362,7 +401,7 @@ export const PDFEditorWorkspace: React.FC = () => {
       fontSize: item.fontSize,
       fontFamily: 'Helvetica',
       color: '#0f172a',
-      backgroundColor: '#ffffff', // Pure white background cleanly covers underlying PDF text
+      backgroundColor: sampledBg !== 'transparent' ? sampledBg : 'transparent',
       opacity: 1,
     };
 
@@ -372,7 +411,7 @@ export const PDFEditorWorkspace: React.FC = () => {
     if (isMobile) {
       setShowMobileProperties(true);
     }
-    showToast('Original text loaded! Type new text to replace, or hit Delete to erase.', 'success');
+    showToast('Original text loaded! Background blended with page.', 'success');
   };
 
   // Add shape
@@ -950,10 +989,10 @@ export const PDFEditorWorkspace: React.FC = () => {
       />
 
       {/* TOP WORKSPACE TOOLBAR */}
-      <div className="h-14 bg-white border-b border-slate-200 px-3 sm:px-4 flex items-center justify-between gap-2 sm:gap-4 shrink-0 shadow-xs z-30">
+      <div className="h-14 bg-white border-b border-slate-200 px-2 sm:px-4 flex items-center justify-between gap-1 sm:gap-4 shrink-0 shadow-xs z-30 max-w-full">
         
         {/* Left: Home/Back, Document Title & Thumbnails trigger */}
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        <div className="flex items-center gap-1 sm:gap-2.5 shrink-0">
           <button
             onClick={() => setCurrentView('home')}
             className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
@@ -965,19 +1004,19 @@ export const PDFEditorWorkspace: React.FC = () => {
           <button
             onClick={() => setShowThumbnails(!showThumbnails)}
             title="Toggle Page Drawer"
-            className={`p-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+            className={`p-1 sm:p-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1 transition-colors ${
               showThumbnails
                 ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
                 : 'border-slate-200 text-slate-700 hover:bg-slate-50'
             }`}
           >
-            <FileText className="w-4 h-4 text-emerald-600" />
+            <FileText className="w-3.5 h-3.5 text-emerald-600" />
             <span className="text-[11px] sm:text-xs">
-              Pages ({currentPage}/{totalPages})
+              <span className="hidden xs:inline">Pages </span>({currentPage}/{totalPages})
             </span>
           </button>
 
-          <div className="hidden sm:flex items-center gap-1.5 max-w-[140px] md:max-w-xs truncate">
+          <div className="hidden md:flex items-center gap-1.5 max-w-[140px] md:max-w-xs truncate">
             <span className="text-xs font-semibold text-slate-800 truncate" title={fileName}>
               {fileName}
             </span>
@@ -990,14 +1029,14 @@ export const PDFEditorWorkspace: React.FC = () => {
           </div>
         </div>
 
-        {/* Center: Undo/Redo & Zoom Controls */}
-        <div className="flex items-center gap-1 sm:gap-2">
+        {/* Center: Undo/Redo & Page Stepper */}
+        <div className="flex items-center gap-1 shrink-0">
           <div className="flex items-center bg-slate-100 rounded-lg p-0.5 border border-slate-200/80">
             <button
               onClick={handleUndo}
               disabled={historyStack.length === 0}
               title="Undo"
-              className="p-1 sm:p-1.5 rounded text-slate-600 hover:text-slate-900 disabled:opacity-30 transition-colors"
+              className="p-1 rounded text-slate-600 hover:text-slate-900 disabled:opacity-30 transition-colors"
             >
               <Undo className="w-3.5 h-3.5" />
             </button>
@@ -1005,40 +1044,9 @@ export const PDFEditorWorkspace: React.FC = () => {
               onClick={handleRedo}
               disabled={redoStack.length === 0}
               title="Redo"
-              className="p-1 sm:p-1.5 rounded text-slate-600 hover:text-slate-900 disabled:opacity-30 transition-colors"
+              className="p-1 rounded text-slate-600 hover:text-slate-900 disabled:opacity-30 transition-colors"
             >
               <Redo className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          {/* Fit Width Button - hidden on tiny screens */}
-          <button
-            onClick={handleFitToWidth}
-            title="Fit Page to Screen Width"
-            className="hidden sm:flex p-1.5 rounded-lg border border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors items-center gap-1 text-xs"
-          >
-            <Maximize2 className="w-3.5 h-3.5 text-emerald-600" />
-            <span className="hidden md:inline text-[11px] font-semibold">Fit</span>
-          </button>
-
-          {/* Zoom controls - hidden on small mobile screens */}
-          <div className="hidden md:flex items-center bg-slate-100 rounded-lg p-0.5 border border-slate-200/80 text-xs font-mono">
-            <button
-              onClick={() => setZoomScale((prev) => Math.max(0.4, prev - 0.2))}
-              title="Zoom Out"
-              className="p-1 sm:p-1.5 rounded text-slate-600 hover:text-slate-900"
-            >
-              <ZoomOut className="w-3.5 h-3.5" />
-            </button>
-            <span className="px-1.5 font-semibold text-slate-700 text-[11px] sm:text-xs">
-              {Math.round(zoomScale * 100)}%
-            </span>
-            <button
-              onClick={() => setZoomScale((prev) => Math.min(2.0, prev + 0.2))}
-              title="Zoom In"
-              className="p-1 sm:p-1.5 rounded text-slate-600 hover:text-slate-900"
-            >
-              <ZoomIn className="w-3.5 h-3.5" />
             </button>
           </div>
 
@@ -1047,23 +1055,23 @@ export const PDFEditorWorkspace: React.FC = () => {
             <button
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={currentPage <= 1}
-              className="p-1 disabled:opacity-30 hover:text-slate-900"
+              className="p-0.5 sm:p-1 disabled:opacity-30 hover:text-slate-900"
             >
-              <ChevronLeft className="w-3.5 h-3.5" />
+              <ChevronLeft className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
             </button>
-            <span className="font-mono text-[11px] font-semibold px-1">
+            <span className="font-mono text-[10px] sm:text-[11px] font-semibold px-0.5 sm:px-1">
               {currentPage}/{totalPages}
             </span>
             <button
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               disabled={currentPage >= totalPages}
-              className="p-1 disabled:opacity-30 hover:text-slate-900"
+              className="p-0.5 sm:p-1 disabled:opacity-30 hover:text-slate-900"
             >
-              <ChevronRight className="w-3.5 h-3.5" />
+              <ChevronRight className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
             </button>
           </div>
 
-          {/* Page Rotation Indicator in Top Bar */}
+          {/* Page Rotation Indicator in Top Bar (Desktop/Tablet) */}
           <button
             onClick={() => setIsRotationDrawerOpen(true)}
             title="Page Rotation (Click to choose 90°, 180°, 270°, 0°)"
@@ -1078,41 +1086,27 @@ export const PDFEditorWorkspace: React.FC = () => {
           </button>
         </div>
 
-        {/* Right: Existing text edit trigger, Properties on mobile & Download PDF button */}
-        <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-          <button
-            onClick={handleToggleEditExistingText}
-            disabled={isDetectingText}
-            title="Scan and edit existing text in this PDF"
-            className={`hidden xs:flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all shadow-xs ${
-              showExistingTextOverlay
-                ? 'bg-purple-600 text-white border-purple-600 ring-2 ring-purple-300'
-                : 'bg-purple-50 text-purple-700 hover:bg-purple-100 border-purple-200'
-            }`}
-          >
-            <ScanText className={`w-3.5 h-3.5 ${isDetectingText ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">{showExistingTextOverlay ? 'Editing Text' : 'Edit PDF Text'}</span>
-          </button>
-
+        {/* Right: Properties on mobile & Download PDF button (Always fully visible, never clipped) */}
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto">
           {selectedElement && isMobile && (
             <button
               onClick={() => setShowMobileProperties(!showMobileProperties)}
               className="p-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-300 text-xs font-bold flex items-center gap-1"
+              title="Style Properties"
             >
               <SlidersHorizontal className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Style</span>
             </button>
           )}
 
           <button
             onClick={handleDownloadPdf}
             disabled={isSaving || !pdfBytes}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 text-white rounded-xl text-xs font-black shadow-md transition-all shrink-0 ring-2 ring-emerald-500/20 active:scale-95"
+            className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 text-white rounded-xl text-xs font-black shadow-md transition-all shrink-0 ring-2 ring-emerald-500/20 active:scale-95"
             title="Download completed PDF file"
           >
-            <Download className="w-4 h-4 animate-bounce" />
-            <span className="text-xs font-extrabold tracking-tight">
-              {isSaving ? 'Downloading...' : 'Download PDF'}
+            <Download className="w-3.5 h-3.5 animate-bounce" />
+            <span className="text-[11px] sm:text-xs font-extrabold tracking-tight">
+              {isSaving ? 'Saving...' : 'Download'}
             </span>
           </button>
         </div>
@@ -1283,58 +1277,6 @@ export const PDFEditorWorkspace: React.FC = () => {
             setShowMobileProperties(false);
           }}
         >
-          {/* Active Elements Chip Bar: Instantly alerts user where signatures/images are and lets them select or center with 1 tap */}
-          {currentAnnotationsForPage.length > 0 && (
-            <div className="mb-3 py-1.5 px-3 bg-white/95 backdrop-blur-xs border border-emerald-300 text-slate-800 rounded-full shadow-sm text-xs flex items-center gap-2 flex-wrap max-w-full z-10 animate-in fade-in">
-              <span className="font-semibold text-emerald-800 text-[11px] whitespace-nowrap">
-                {currentAnnotationsForPage.length} element{currentAnnotationsForPage.length > 1 ? 's' : ''} on Page {currentPage}:
-              </span>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {currentAnnotationsForPage.map((elem) => (
-                  <button
-                    key={elem.id}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedElementId(elem.id);
-                      if (isMobile) setShowMobileProperties(true);
-                    }}
-                    className={`px-2 py-0.5 rounded-full text-[11px] font-bold transition-all flex items-center gap-1 ${
-                      selectedElementId === elem.id
-                        ? 'bg-emerald-600 text-white shadow-xs'
-                        : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
-                    }`}
-                  >
-                    <span>{elem.type === 'signature' ? '✍️ Signature' : elem.type === 'image' ? '🖼️ Image' : elem.type === 'text' ? '📝 Text' : '📐 Shape'}</span>
-                  </button>
-                ))}
-
-                {selectedElement && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const cWidth = canvasDimensions.width || 600;
-                      const cHeight = canvasDimensions.height || 800;
-                      setAnnotations((prev) =>
-                        prev.map((a) =>
-                          a.id === selectedElement.id
-                            ? {
-                                ...a,
-                                x: Math.max(20, Math.floor((cWidth - a.width) / 2)),
-                                y: Math.max(40, Math.min(160, Math.floor(cHeight * 0.2))),
-                              }
-                            : a
-                        )
-                      );
-                      showToast('Element brought to center view!', 'info');
-                    }}
-                    className="text-[11px] text-purple-700 font-bold hover:underline px-1.5 py-0.5 rounded bg-purple-50 border border-purple-200"
-                  >
-                    Bring to center
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
 
           {/* Page Rotation Status Banner (Always clearly shows page rotation at the top) */}
           {pageRotation > 0 && (
@@ -1519,10 +1461,13 @@ export const PDFEditorWorkspace: React.FC = () => {
                             onMouseDown={(e) => e.stopPropagation()}
                             onTouchStart={(e) => e.stopPropagation()}
                             placeholder="Type text..."
-                            className="w-full h-full p-1 bg-white/95 border border-emerald-500 rounded focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-none overflow-hidden select-text leading-snug shadow-inner"
+                            className="w-full h-full p-1 border border-emerald-500 rounded focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-none overflow-hidden select-text leading-snug"
                             style={{
                               fontSize: `${elem.fontSize || 16}px`,
                               color: elem.color || '#0f172a',
+                              backgroundColor: elem.backgroundColor && elem.backgroundColor !== 'transparent'
+                                ? elem.backgroundColor
+                                : 'rgba(255, 255, 255, 0.4)',
                               fontFamily: elem.fontFamily || 'sans-serif',
                               fontWeight: elem.fontWeight || 'normal',
                               fontStyle: elem.fontStyle || 'normal',
@@ -2396,6 +2341,89 @@ export const PDFEditorWorkspace: React.FC = () => {
                     </div>
                   </div>
 
+                  {/* Background Fill Color (Blend seamlessly with document) */}
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1.5 flex items-center justify-between">
+                      <span>Background Fill (Page Blend)</span>
+                      <span className="text-[10px] font-mono text-purple-700">
+                        {!selectedElement.backgroundColor || selectedElement.backgroundColor === 'transparent'
+                          ? 'Transparent'
+                          : selectedElement.backgroundColor}
+                      </span>
+                    </label>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAnnotations((prev) =>
+                            prev.map((a) => (a.id === selectedElement.id ? { ...a, backgroundColor: 'transparent' } : a))
+                          );
+                          showToast('Background set to Transparent (seamless blend)', 'info');
+                        }}
+                        className={`px-2 py-1 rounded-lg text-xs font-bold border transition-all ${
+                          !selectedElement.backgroundColor || selectedElement.backgroundColor === 'transparent'
+                            ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+                            : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        None (Transparent)
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const detected = sampleCanvasBgColor(selectedElement.x, selectedElement.y);
+                          const chosen = detected !== 'transparent' ? detected : '#ffffff';
+                          setAnnotations((prev) =>
+                            prev.map((a) => (a.id === selectedElement.id ? { ...a, backgroundColor: chosen } : a))
+                          );
+                          showToast(`Matched page color: ${chosen}`, 'success');
+                        }}
+                        className="px-2 py-1 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100"
+                      >
+                        Auto-Match Page
+                      </button>
+
+                      {[
+                        { color: '#ffffff', name: 'White' },
+                        { color: '#f8fafc', name: 'Off-White' },
+                        { color: '#f1f5f9', name: 'Light Slate' },
+                        { color: '#fef3c7', name: 'Cream' },
+                        { color: '#ecfdf5', name: 'Mint' },
+                      ].map((item) => (
+                        <button
+                          key={item.color}
+                          type="button"
+                          onClick={() => {
+                            setAnnotations((prev) =>
+                              prev.map((a) => (a.id === selectedElement.id ? { ...a, backgroundColor: item.color } : a))
+                            );
+                          }}
+                          className={`w-6 h-6 rounded-full border-2 transition-transform ${
+                            selectedElement.backgroundColor === item.color
+                              ? 'border-slate-900 scale-110 shadow-sm ring-2 ring-emerald-400'
+                              : 'border-slate-300'
+                          }`}
+                          style={{ backgroundColor: item.color }}
+                          title={item.name}
+                        />
+                      ))}
+
+                      <input
+                        type="color"
+                        value={selectedElement.backgroundColor && selectedElement.backgroundColor !== 'transparent' ? selectedElement.backgroundColor : '#ffffff'}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setAnnotations((prev) =>
+                            prev.map((a) => (a.id === selectedElement.id ? { ...a, backgroundColor: val } : a))
+                          );
+                        }}
+                        className="w-6 h-6 p-0 rounded-full border border-slate-300 cursor-pointer overflow-hidden"
+                        title="Custom background color"
+                      />
+                    </div>
+                  </div>
+
                   {/* Formatting Toggles: Bold, Italic, Underline, Center on page */}
                   <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">
                     <div className="flex items-center gap-1.5">
@@ -2842,6 +2870,70 @@ export const PDFEditorWorkspace: React.FC = () => {
             </button>
           </div>
 
+          {/* Quick Background Blend Control */}
+          <div className="flex items-center justify-between gap-1 py-1 px-1.5 bg-slate-50 rounded-lg border border-slate-100 my-1 text-[11px]">
+            <span className="font-bold text-slate-600 text-[10px]">Background:</span>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <button
+                type="button"
+                onClick={() => {
+                  setAnnotations((prev) =>
+                    prev.map((a) => (a.id === selectedElement.id ? { ...a, backgroundColor: 'transparent' } : a))
+                  );
+                  showToast('Background: Transparent (seamless blend)', 'info');
+                }}
+                className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all ${
+                  !selectedElement.backgroundColor || selectedElement.backgroundColor === 'transparent'
+                    ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                Transparent
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const sampled = sampleCanvasBgColor(selectedElement.x, selectedElement.y);
+                  const chosen = sampled !== 'transparent' ? sampled : '#f8fafc';
+                  setAnnotations((prev) =>
+                    prev.map((a) => (a.id === selectedElement.id ? { ...a, backgroundColor: chosen } : a))
+                  );
+                  showToast('Background: Matched Page Color', 'success');
+                }}
+                className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200"
+              >
+                Match Page
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAnnotations((prev) =>
+                    prev.map((a) => (a.id === selectedElement.id ? { ...a, backgroundColor: '#ffffff' } : a))
+                  );
+                }}
+                className={`px-1.5 py-0.5 rounded text-[10px] font-bold border transition-all ${
+                  selectedElement.backgroundColor === '#ffffff'
+                    ? 'bg-slate-900 text-white border-slate-900'
+                    : 'bg-white text-slate-700 border-slate-200'
+                }`}
+              >
+                White
+              </button>
+              <input
+                type="color"
+                value={selectedElement.backgroundColor && selectedElement.backgroundColor !== 'transparent' ? selectedElement.backgroundColor : '#ffffff'}
+                onChange={(e) => {
+                  const c = e.target.value;
+                  setAnnotations((prev) =>
+                    prev.map((a) => (a.id === selectedElement.id ? { ...a, backgroundColor: c } : a))
+                  );
+                }}
+                className="w-4 h-4 p-0 rounded border border-slate-300 cursor-pointer overflow-hidden"
+                title="Custom background color"
+              />
+            </div>
+          </div>
+
           <div className="flex items-center justify-between gap-1 flex-wrap pt-1 border-t border-slate-100">
             {/* Font Size Steppers */}
             <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
@@ -2943,13 +3035,13 @@ export const PDFEditorWorkspace: React.FC = () => {
       )}
 
       {/* MOBILE BOTTOM TOOLBAR (Floating, touch-friendly, gives 100% width to document!) */}
-      <div className="lg:hidden fixed bottom-0 inset-x-0 h-14 bg-white/95 backdrop-blur-md border-t border-slate-200 z-30 flex items-center justify-around px-2 shadow-lg">
+      <div className="lg:hidden fixed bottom-0 inset-x-0 h-14 bg-white/95 backdrop-blur-md border-t border-slate-200 z-30 flex items-center justify-between px-2 sm:px-4 shadow-lg">
         <button
           onClick={() => {
             setActiveTool('select');
             setSelectedElementId(null);
           }}
-          className={`p-2 rounded-xl flex flex-col items-center justify-center ${
+          className={`p-1.5 rounded-xl flex flex-col items-center justify-center ${
             activeTool === 'select' ? 'text-emerald-700 bg-emerald-50' : 'text-slate-600'
           }`}
           title="Select"
@@ -2968,10 +3060,10 @@ export const PDFEditorWorkspace: React.FC = () => {
               showToast('Tap anywhere on the PDF page to place text cursor!', 'info');
             }
           }}
-          className={`p-2 rounded-xl flex flex-col items-center justify-center transition-colors ${
+          className={`p-1.5 rounded-xl flex flex-col items-center justify-center transition-colors ${
             activeTool === 'text' ? 'text-purple-700 bg-purple-50 ring-1 ring-purple-300' : 'text-slate-600 hover:text-purple-600'
           }`}
-          title="Add Text (tap on page to place)"
+          title="Add Text"
         >
           <Type className="w-4 h-4 text-purple-600" />
           <span className="text-[9px] font-semibold">Text</span>
@@ -2980,7 +3072,7 @@ export const PDFEditorWorkspace: React.FC = () => {
         <button
           onClick={handleToggleEditExistingText}
           disabled={isDetectingText}
-          className={`p-2 rounded-xl flex flex-col items-center justify-center transition-colors ${
+          className={`p-1.5 rounded-xl flex flex-col items-center justify-center transition-colors ${
             showExistingTextOverlay ? 'text-purple-700 bg-purple-100 ring-1 ring-purple-400' : 'text-slate-600'
           }`}
           title="Detect and edit existing PDF text"
@@ -2989,9 +3081,20 @@ export const PDFEditorWorkspace: React.FC = () => {
           <span className="text-[9px] font-semibold">Edit PDF</span>
         </button>
 
+        {/* PRIMARY PROMINENT DOWNLOAD BUTTON IN CENTER OF MOBILE TOOLBAR - NEVER COVERED BY CORNER BADGES */}
+        <button
+          onClick={handleDownloadPdf}
+          disabled={isSaving || !pdfBytes}
+          className="p-1 px-3 -mt-3.5 rounded-2xl flex flex-col items-center justify-center bg-emerald-600 active:bg-emerald-700 text-white shadow-xl active:scale-95 transition-all shrink-0 font-bold border-2 border-white ring-2 ring-emerald-500/40"
+          title="Download PDF Document"
+        >
+          <Download className="w-4 h-4 text-white animate-bounce" />
+          <span className="text-[8.5px] font-black uppercase tracking-tight">{isSaving ? '...' : 'Download'}</span>
+        </button>
+
         <button
           onClick={() => setIsSignatureModalOpen(true)}
-          className="p-2 rounded-xl flex flex-col items-center justify-center text-slate-600 hover:text-emerald-600"
+          className="p-1.5 rounded-xl flex flex-col items-center justify-center text-slate-600 hover:text-emerald-600"
           title="Draw / Sign"
         >
           <FileSignature className="w-4 h-4 text-emerald-600" />
@@ -3000,7 +3103,7 @@ export const PDFEditorWorkspace: React.FC = () => {
 
         <button
           onClick={() => handleAddWhiteout()}
-          className="p-2 rounded-xl flex flex-col items-center justify-center text-slate-600 hover:text-rose-500"
+          className="p-1.5 rounded-xl flex flex-col items-center justify-center text-slate-600 hover:text-rose-500"
           title="Whiteout Eraser"
         >
           <Eraser className="w-4 h-4 text-rose-500" />
@@ -3009,7 +3112,7 @@ export const PDFEditorWorkspace: React.FC = () => {
 
         <button
           onClick={() => imageUploadRef.current?.click()}
-          className="p-2 rounded-xl flex flex-col items-center justify-center text-slate-600"
+          className="p-1.5 rounded-xl flex flex-col items-center justify-center text-slate-600"
           title="Image"
         >
           <ImageIcon className="w-4 h-4 text-blue-600" />
@@ -3018,7 +3121,7 @@ export const PDFEditorWorkspace: React.FC = () => {
 
         <button
           onClick={handleRotateClick}
-          className={`p-2 rounded-xl flex flex-col items-center justify-center transition-colors ${
+          className={`p-1.5 rounded-xl flex flex-col items-center justify-center transition-colors ${
             pageRotation > 0 || isRotationDrawerOpen
               ? 'text-purple-700 bg-purple-50 ring-1 ring-purple-300'
               : 'text-slate-600'
@@ -3027,17 +3130,6 @@ export const PDFEditorWorkspace: React.FC = () => {
         >
           <RotateCw className="w-4 h-4" />
           <span className="text-[9px] font-semibold">{pageRotation > 0 ? `${pageRotation}°` : 'Rotate'}</span>
-        </button>
-
-        {/* PROMINENT MOBILE DOWNLOAD BUTTON */}
-        <button
-          onClick={handleDownloadPdf}
-          disabled={isSaving || !pdfBytes}
-          className="p-1.5 px-2.5 rounded-xl flex flex-col items-center justify-center bg-emerald-600 active:bg-emerald-700 text-white shadow-md active:scale-95 transition-all shrink-0 font-bold border border-emerald-400/40"
-          title="Download PDF Document"
-        >
-          <Download className="w-4 h-4 text-white" />
-          <span className="text-[9px] font-black uppercase tracking-tight">{isSaving ? '...' : 'Download'}</span>
         </button>
       </div>
 
